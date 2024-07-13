@@ -1,4 +1,6 @@
 import nodemailer from 'nodemailer';
+import path from 'path';
+import fs from 'fs';
 
 // Función para crear el transporter
 function crearTransporter() {
@@ -21,11 +23,15 @@ async function enviarCorreoRecuperacion(email, nuevaContrasena) {
     const transporter = crearTransporter();
     const emailUser = process.env.EMAIL_USER;
 
+
+    const emailTemplatePath = path.join('uploads', 'html', 'reset-password.html');
+    const emailTemplate = fs.readFileSync(emailTemplatePath, 'utf8');
+
     const mailOptions = {
         from: emailUser, // Cambia con tu dirección de correo de servidor
         to: email,
         subject: 'Recuperación de Contraseña',
-        text: `Tu nueva contraseña temporal es: ${nuevaContrasena}. Te recomendamos cambiarla una vez hayas iniciado sesión.`
+        html: emailTemplate.replace('${nuevaContrasena}', nuevaContrasena)
     };
 
     await transporter.sendMail(mailOptions);

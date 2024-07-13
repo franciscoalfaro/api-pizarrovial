@@ -93,7 +93,7 @@ export const login = async (req, res) => {
 
         if (!pwd) {
             return res.status(400).send({
-                error: "Error_pass",
+                error: "error",
                 message: "No te has identificado de forma correcta."
             });
         }

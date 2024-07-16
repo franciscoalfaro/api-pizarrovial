@@ -22,7 +22,12 @@ const uploads = multer({ storage });
 router.post("/uploads/:folderId", checkAuth, uploads.array('files'), FileController.uploadFile);
 router.delete("/delete/:fileId", checkAuth,FileController.deleteFile)
 
+//obtener el listado de archivos
 router.get("/files/:folderId", checkAuth, FileController.listFiles);
+
+//descargar archivo que corresponde
+router.get("/download/:fileId", checkAuth, FileController.downloadFile);
+
 
 router.get("/disk-space", checkAuth, FileController.getDiskSpace);
 

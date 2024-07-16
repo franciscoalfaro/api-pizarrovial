@@ -9,27 +9,30 @@ const getNextParentNumber = async () => {
     return lastDirectory ? lastDirectory.parentNumber + 1 : 1;
 };
 
+
 export const createDirectory = async (req, res) => {
     const { name, parent } = req.body;
     const createdBy = req.user.id; // Usar el ID del usuario autenticado
 
     try {
         const baseDir = 'uploads/directorios';
-        let parentPath = baseDir;
+        let parentPath = baseDir; // Ruta base
         let parentNumber = null;
+        let parentDirectory = null; // Inicializar parentDirectory
 
+        // Si hay un directorio padre especificado
         if (parent) {
-            const parentDirectory = await Directory.findById(parent);
+            parentDirectory = await Directory.findById(parent);
             if (!parentDirectory) {
                 return res.status(404).json({ error: 'Directorio padre no encontrado' });
             }
-            parentPath = path.join(baseDir, parentDirectory.path); // Aquí se obtiene la ruta del padre
+            parentPath = path.join(parentDirectory.path); // Obtén la ruta del directorio padre
             parentNumber = parentDirectory.parentNumber;
         } else {
             parentNumber = await getNextParentNumber(); // Para el directorio raíz
         }
 
-        const newPath = path.join(parentPath, name); // Solo se agrega el nuevo nombre al path del padre
+        const newPath = path.join(parentPath, name); // Construir la ruta del nuevo directorio
 
         // Verificar si el directorio ya existe en la base de datos
         const existingDirectory = await Directory.findOne({ name, parent });
@@ -40,13 +43,13 @@ export const createDirectory = async (req, res) => {
         // Crear el directorio físico
         fs.mkdirSync(newPath, { recursive: true });
 
-        // Guardar la información del directorio en la base de datos
+        // Guardar la información del nuevo directorio en la base de datos
         const newDirectory = new Directory({
             name,
             parent: parent || null, // Asignar el ID del padre o null para el directorio raíz
             parentNumber,
             createdBy,
-            path: newPath.replace(/\\/g, '/').replace(baseDir, '') // Asegurarse de que el path esté correcto
+            path: parentDirectory ? path.join(parentDirectory.path, name).replace(/\\/g, '/') : name // Ruta relativa
         });
         await newDirectory.save();
 
@@ -127,6 +130,32 @@ export const deleteDirectory = async (req, res) => {
 };
 
 
-
 // Obtener todos los subdirectorios de un directorio raiz
+export const getAllDirectories = async (req, res) => {
+    const { page = 1, limit = 10 } = req.query; // Obtén los parámetros de paginación
 
+    try {
+        const options = {
+            page: parseInt(page), // Convierte a número
+            limit: parseInt(limit), // Convierte a número
+            populate: [
+                { path: 'createdBy', select: 'name surname' },
+            ]
+        };
+
+        // Encontrar solo los directorios que son raíces (sin padre)
+        const result = await Directory.paginate({ parent: null }, options);
+
+        res.status(200).json({
+            status: "success",
+            message: "Directorios raíz encontrados",
+            directorios: result.docs,
+            totalDoc: result.totalDocs,
+            limit: result.limit,
+            totalPage: result.totalPages,
+            page: result.page,
+        });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+};

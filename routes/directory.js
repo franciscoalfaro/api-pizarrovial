@@ -7,7 +7,8 @@ const router = express.Router()
 
 router.post("/create",checkAuth, DirectoryController.createDirectory)
 
-router.get("/list",checkAuth, DirectoryController.getDirectories)
+router.get("/list/:page?",checkAuth, DirectoryController.getDirectories)
+router.get("/listAll/:page?",checkAuth, DirectoryController.getAllDirectories)
 
 router.delete("/delete/:directoryId", checkAuth, DirectoryController.deleteDirectory);
 

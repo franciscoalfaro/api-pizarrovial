@@ -9,7 +9,7 @@ connection();
 
 //crear conexion a servidor de node
 const app = express();
-const puerto = 3005;
+const puerto = 3007;
 
 //configurar cors
 app.use(cors());

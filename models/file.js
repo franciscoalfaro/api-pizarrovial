@@ -24,6 +24,11 @@ const fileSchema = new Schema({
         ref: 'User',
         required: true,
     },
+    directory: { 
+        type: Schema.Types.ObjectId,
+        ref: 'Directory',
+        required: true,
+    },
     createdAt: {
         type: Date,
         default: Date.now,

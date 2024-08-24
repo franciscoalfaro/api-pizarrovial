@@ -13,6 +13,7 @@ const getNextParentNumber = async () => {
 export const createDirectory = async (req, res) => {
     const { name, parent } = req.body;
     const createdBy = req.user.id; // Usar el ID del usuario autenticado
+    console.log(req.body)
 
     try {
         const baseDir = 'uploads/directorios';
@@ -53,37 +54,65 @@ export const createDirectory = async (req, res) => {
         });
         await newDirectory.save();
 
-        res.status(201).json(newDirectory);
+        return res.status(200).send({
+            status: "success",
+            message: "directorio creado correctamente",
+            newDirectory
+
+        })
     } catch (error) {
         res.status(500).json({ error: error.message });
     }
 };
 
-// Obtener todos los directorios
 export const getDirectories = async (req, res) => {
-    const userId = req.user.id; // ID del usuario autenticado
-    const { page = 1, limit = 10 } = req.query; // Obtén los parámetros de paginación
+    const userId = req.user.id;
+    const page = parseInt(req.query.page) || 1; // Página actual, por defecto 1
+    const limit = parseInt(req.query.limit) || 10; // Límite de archivos por página, por defecto 10
 
     try {
-        const options = {
-            page: parseInt(page), // Convierte a número
-            limit: parseInt(limit), // Convierte a número
-        };
+        // Verificar si el usuario está autenticado
+        if (!userId) {
+            return res.status(401).json({ error: 'No autorizado. Debes estar autenticado para ver archivos.' });
+        }
 
-        // Encontrar solo los directorios que no tienen padre y fueron creados por el usuario
-        const result = await Directory.paginate({ parent: null, createdBy: userId }, options);
+        // Buscar el directorio raíz del usuario autenticado
+        const rootDirectory = await Directory.findOne({ createdBy: userId, parent: null });
+        if (!rootDirectory) {
+            return res.status(404).json({ error: 'Directorio principal no encontrado' });
+        }
+
+        // Contar el total de archivos en el directorio raíz
+        const totalFiles = await File.countDocuments({ directory: rootDirectory._id });
+
+        // Obtener los archivos que pertenecen al directorio raíz con paginación
+        const files = await File.find({ directory: rootDirectory._id })
+            .skip((page - 1) * limit)
+            .limit(limit);
+
+        // Listar subdirectorios dentro del directorio raíz
+        const subDirectories = await Directory.find({
+            parent: rootDirectory._id,
+            createdBy: userId
+        });
 
         res.status(200).json({
-            directorios:result.docs,
-            totalDoc:result.totalDocs,
-            limit:result.limit,
-            totalPage:result.totalPages,
-            page: result.page,
+            status: "success",
+            message: "Archivos y directorios encontrados",
+            resultado: {
+                totalFiles,
+                currentPage: page,
+                totalPages: Math.ceil(totalFiles / limit),
+                files,
+                directorios: subDirectories,
+                parent: rootDirectory._id,
+            }
         });
     } catch (error) {
         res.status(500).json({ error: error.message });
     }
 };
+
 
 //elimninar directorio con todo dentro de su interior y sus datos de la bd
 export const deleteDirectory = async (req, res) => {
@@ -103,12 +132,12 @@ export const deleteDirectory = async (req, res) => {
         }
 
         // Obtener la ruta del directorio
-        const dirPath = path.join('uploads/directorios', directory.path);
+        const dirPath = path.join(directory.path);
 
         // Eliminar archivos dentro del directorio
         const files = await File.find({ filepath: { $regex: `^${directory.path}` } });
         for (const file of files) {
-            const filePath = path.join('uploads/directorios', file.filepath);
+            const filePath = path.join(file.filepath);
             fs.unlinkSync(filePath); // Eliminar archivo físico
             await File.findByIdAndDelete(file._id); // Eliminar el registro de la base de datos
         }

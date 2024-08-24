@@ -5,13 +5,12 @@ import path from 'path';
 import { getDiskInfo } from 'node-disk-info';
 
 export const uploadFile = async (req, res) => {
-    const { folderId } = req.params;
+    const { folderId, directory } = req.params;
     const userId = req.user.id; // ID del usuario autenticado
 
     try {
         // Buscar el directorio por ID
         const directory = await Directory.findById(folderId);
-        console.log(directory)
         if (!directory) {
             return res.status(404).json({ error: 'Directorio no encontrado' });
         }
@@ -47,6 +46,7 @@ export const uploadFile = async (req, res) => {
                 mimetype: file.mimetype,
                 size: file.size,
                 uploadedBy: userId,
+                directory: folderId
             });
 
             await newFile.save(); // Guardar el archivo en la base de datos
@@ -63,6 +63,7 @@ export const uploadFile = async (req, res) => {
 export const deleteFile = async (req, res) => {
     const { fileId } = req.params;
     const userId = req.user.id; // ID del usuario autenticado
+ 
 
     try {
         // Buscar el archivo en la base de datos
@@ -77,7 +78,7 @@ export const deleteFile = async (req, res) => {
         }
 
         // Construir la ruta del archivo
-        const filePath = path.join('uploads/directorios', file.filepath);
+        const filePath = path.join(file.filepath);
 
         // Eliminar el archivo físico
         fs.unlinkSync(filePath);
@@ -91,36 +92,48 @@ export const deleteFile = async (req, res) => {
     }
 };
 
-// Listar archivos de un directorio -- issue se debe de agregar paginado
+// Listar todo lo de una carpeta ya sea carpetas y archivos. se debe de corregir el filtrado de files, que se encuentran en un
 export const listFiles = async (req, res) => {
     const { folderId } = req.params;
-    const userId = req.user.id; // ID del usuario autenticado
+    const userId = req.user.id;
+    const page = parseInt(req.query.page) || 1; // Página actual, por defecto 1
+    const limit = parseInt(req.query.limit) || 10; // Límite de archivos por página, por defecto 10
 
     try {
+        if (!userId) {
+            return res.status(401).json({ error: 'No autorizado. Debes estar autenticado para ver archivos.' });
+        }
+
         // Verificar si el directorio existe
         const directory = await Directory.findById(folderId);
         if (!directory) {
             return res.status(404).json({ error: 'Directorio no encontrado' });
         }
 
-        // Listar archivos que pertenecen al directorio y al usuario autenticado
-        const files = await File.find({
-            filepath: { $regex: `^${directory.path}` }, // Filtrar por la ruta del directorio
-            uploadedBy: userId // Filtrar por el ID del usuario
-        });
+        // Contar el total de archivos en el directorio
+        const totalFiles = await File.countDocuments({ directory: folderId });
+
+        // Obtener los archivos que pertenecen al directorio con paginación
+        const files = await File.find({ directory: folderId })
+            .skip((page - 1) * limit)
+            .limit(limit);
 
         // Listar subdirectorios dentro del directorio actual
         const subDirectories = await Directory.find({
             parent: directory._id,
-            createdBy: userId // Filtrar por el ID del usuario
+            createdBy: userId
         });
 
         res.status(200).json({
             status: "success",
             message: "Archivos y directorios encontrados",
             resultado: {
+                totalFiles,
+                currentPage: page,
+                totalPages: Math.ceil(totalFiles / limit),
                 files,
-                directories: subDirectories
+                directorios: subDirectories,
+                parent: directory._id,
             }
         });
 
@@ -129,10 +142,18 @@ export const listFiles = async (req, res) => {
     }
 };
 
+
+
+
 export const downloadFile = async (req, res) => {
     const { fileId } = req.params;
+    const userId = req.user.id;
 
     try {
+
+        if (!userId) {
+            return res.status(401).json({ error: 'No autorizado. Debes estar autenticado para descargar archivos.' });
+        }
         // Buscar el archivo en la base de datos
         const file = await File.findById(fileId);
         if (!file) {
@@ -140,7 +161,8 @@ export const downloadFile = async (req, res) => {
         }
 
         // Construir la ruta del archivo
-        const filePath = path.join('uploads/directorios', file.filepath);
+        const filePath = path.join(file.filepath);
+
 
         // Verificar si el archivo existe
         if (!fs.existsSync(filePath)) {

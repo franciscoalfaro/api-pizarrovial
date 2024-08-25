@@ -68,7 +68,8 @@ export const uploadFile = async (req, res) => {
             }
         }
 
-        res.status(201).json({ status: 'success', message: 'Archivos subidos correctamente', files: uploadedFiles });
+        res.status(201).json({ status: "success", message: 'Archivos subidos correctamente', files: uploadedFiles });
+
     } catch (error) {
         // En caso de error, eliminar cualquier archivo temporal
         if (req.files) {

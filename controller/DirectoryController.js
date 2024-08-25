@@ -152,7 +152,7 @@ export const deleteDirectory = async (req, res) => {
         await Directory.findByIdAndDelete(directoryId);
         fs.rmSync(dirPath, { recursive: true }); // Eliminar el directorio físico
 
-        res.status(200).json({ message: 'Directorio y su contenido eliminados' });
+        res.status(200).json({ status:"success",message: 'Directorio y su contenido eliminados' });
     } catch (error) {
         res.status(500).json({ error: error.message });
     }

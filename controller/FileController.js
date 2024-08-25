@@ -110,7 +110,7 @@ export const deleteFile = async (req, res) => {
         // Eliminar el registro de la base de datos
         await File.findByIdAndDelete(fileId);
 
-        res.status(200).json({ message: 'Archivo eliminado' });
+        res.status(200).json({ status:"success", message: 'Archivo eliminado' });
     } catch (error) {
         res.status(500).json({ error: error.message });
     }

@@ -12,7 +12,9 @@ const app = express();
 const puerto = 3007;
 
 //configurar cors
-app.use(cors());
+app.use(cors({
+    exposedHeaders: ['Content-Disposition']
+  }));
 
 //conertir los datos del body a obj js
 app.use(express.json());

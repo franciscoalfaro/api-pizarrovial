@@ -4,17 +4,28 @@ import fs from 'fs';
 import path from 'path';
 import { getDiskInfo } from 'node-disk-info';
 
+//extensiones permitidas
+const allowedExtensions = ['pdf', 'png', 'jpg', 'jpeg', 'gif', 'docx', 'xlsx', 'txt'];
+//extensiones no permitidas
+const disallowedExtensions = ['exe','bat', 'sh'];
 
-// isue indicar extension de archivo a subir, si es .exe o ejecutable que mantenga la extension para descargar 
 export const uploadFile = async (req, res) => {
-    const { folderId, directory } = req.params;
+    const { folderId } = req.params;
     const userId = req.user.id; // ID del usuario autenticado
-    console.log(folderId)
+
     try {
-        // Buscar el directorio por ID
+        // Verificar si el directorio existe antes de cualquier operación
         const directory = await Directory.findById(folderId);
         if (!directory) {
-            return res.status(404).json({ error: 'Directorio no encontrado' });
+            // Eliminar archivos temporales si el directorio no existe
+            if (req.files) {
+                req.files.forEach(file => {
+                    if (fs.existsSync(file.path)) {
+                        fs.unlinkSync(file.path); // Eliminar archivo temporal
+                    }
+                });
+            }
+            return res.status(404).json({ error: 'Directorio no encontrado. No se han subido archivos.' });
         }
 
         // Recoger archivos subidos
@@ -23,39 +34,50 @@ export const uploadFile = async (req, res) => {
             return res.status(400).json({ error: 'No se han subido archivos' });
         }
 
-        // Obtener el directorio actual
-
+        const uploadedFiles = [];
         const uploadPath = path.join(directory.path);
 
-        // Asegurarse de que la carpeta de destino exista
-        if (!fs.existsSync(uploadPath)) {
-            fs.mkdirSync(uploadPath, { recursive: true }); // Crear la carpeta si no existe
-        }
-
-        const uploadedFiles = [];
-
-        // Mover archivos a la carpeta correspondiente
+        // Validar extensiones y mover archivos solo si son válidos
         for (const file of files) {
-            const filePath = path.join(uploadPath, file.filename);
-            console.log(filePath)
-            fs.renameSync(file.path, filePath); // Mover el archivo subido a la carpeta correspondiente
+            const fileExtension = path.extname(file.originalname).slice(1).toLowerCase();
 
-            // Crear un objeto de archivo para guardar en la base de datos
-            const newFile = new File({
-                filename: file.filename,
-                filepath: path.join(directory.path, file.filename).replace(/\\/g, '/'), // Guardar la ruta relativa
-                mimetype: file.mimetype,
-                size: file.size,
-                uploadedBy: userId,
-                directory: folderId
-            });
+            if (allowedExtensions.includes(fileExtension) && !disallowedExtensions.includes(fileExtension)) {
+                const filePath = path.join(uploadPath, file.originalname);
 
-            await newFile.save(); // Guardar el archivo en la base de datos
-            uploadedFiles.push(newFile);
+                // Mover el archivo solo si pasa la validación
+                fs.renameSync(file.path, filePath);
+
+                // Crear un objeto de archivo para guardar en la base de datos
+                const newFile = new File({
+                    filename: file.originalname,
+                    filepath: path.join(directory.path, file.originalname).replace(/\\/g, '/'),
+                    mimetype: file.mimetype,
+                    size: file.size,
+                    uploadedBy: userId,
+                    directory: folderId
+                });
+
+                await newFile.save(); // Guardar en la base de datos
+                uploadedFiles.push(newFile);
+            } else {
+                // Eliminar archivo temporal si la extensión no es válida
+                if (fs.existsSync(file.path)) {
+                    fs.unlinkSync(file.path);
+                }
+                return res.status(400).json({ error: `Extensión no permitida: ${fileExtension}. No se han subido archivos.` });
+            }
         }
 
-        res.status(201).json({ status:'success', message: 'Archivos subidos correctamente', files: uploadedFiles });
+        res.status(201).json({ status: 'success', message: 'Archivos subidos correctamente', files: uploadedFiles });
     } catch (error) {
+        // En caso de error, eliminar cualquier archivo temporal
+        if (req.files) {
+            req.files.forEach(file => {
+                if (fs.existsSync(file.path)) {
+                    fs.unlinkSync(file.path);
+                }
+            });
+        }
         res.status(500).json({ error: error.message });
     }
 };
@@ -64,7 +86,7 @@ export const uploadFile = async (req, res) => {
 export const deleteFile = async (req, res) => {
     const { fileId } = req.params;
     const userId = req.user.id; // ID del usuario autenticado
- 
+
 
     try {
         // Buscar el archivo en la base de datos
@@ -144,31 +166,42 @@ export const downloadFile = async (req, res) => {
     const userId = req.user.id;
 
     try {
-
         if (!userId) {
             return res.status(401).json({ error: 'No autorizado. Debes estar autenticado para descargar archivos.' });
         }
+
         // Buscar el archivo en la base de datos
         const file = await File.findById(fileId);
         if (!file) {
             return res.status(404).json({ error: 'Archivo no encontrado' });
         }
 
-        // Construir la ruta del archivo
-        const filePath = path.join(file.filepath);
+        // Construir la ruta completa del archivo
+        const filePath = path.resolve(file.filepath);
 
-
-        // Verificar si el archivo existe
+        // Verificar si el archivo existe en el sistema de archivos
         if (!fs.existsSync(filePath)) {
             return res.status(404).json({ error: 'Archivo no encontrado en el sistema de archivos' });
         }
 
-        // Enviar el archivo al cliente
-        res.download(filePath, file.filename, (err) => {
-            if (err) {
-                return res.status(500).json({ error: 'Error al descargar el archivo' });
-            }
+        // Configurar el tipo de contenido basado en la extensión del archivo
+        const mimeType = file.mimetype || 'application/octet-stream';
+        console.log(file.filename)
+        res.setHeader('Content-Type', mimeType);
+
+        // Establecer cabeceras adicionales para asegurar una correcta descarga
+        res.setHeader('Content-Disposition', `attachment; filename="${file.filename}"`);
+        res.setHeader('Content-Length', file.size);
+
+        // Leer y enviar el archivo al cliente como un flujo de datos
+        const fileStream = fs.createReadStream(filePath);
+        fileStream.pipe(res);
+
+        // Manejar posibles errores durante la lectura del archivo
+        fileStream.on('error', (err) => {
+            return res.status(500).json({ error: 'Error al descargar el archivo' });
         });
+
     } catch (error) {
         res.status(500).json({ error: error.message });
     }
@@ -178,7 +211,7 @@ export const downloadFile = async (req, res) => {
 export const getDiskSpace = async (req, res) => {
     try {
         const disks = await getDiskInfo();
-        
+
         // Obtener la información del primer disco disponible
         const diskInfo = disks[0]; // Esto selecciona el primer disco en la lista
 

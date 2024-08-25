@@ -4,10 +4,12 @@ import fs from 'fs';
 import path from 'path';
 import { getDiskInfo } from 'node-disk-info';
 
+
+// isue indicar extension de archivo a subir, si es .exe o ejecutable que mantenga la extension para descargar 
 export const uploadFile = async (req, res) => {
     const { folderId, directory } = req.params;
     const userId = req.user.id; // ID del usuario autenticado
-
+    console.log(folderId)
     try {
         // Buscar el directorio por ID
         const directory = await Directory.findById(folderId);
@@ -24,7 +26,6 @@ export const uploadFile = async (req, res) => {
         // Obtener el directorio actual
 
         const uploadPath = path.join(directory.path);
-        console.log('actual',uploadPath)
 
         // Asegurarse de que la carpeta de destino exista
         if (!fs.existsSync(uploadPath)) {
@@ -53,7 +54,7 @@ export const uploadFile = async (req, res) => {
             uploadedFiles.push(newFile);
         }
 
-        res.status(201).json({ message: 'Archivos subidos correctamente', files: uploadedFiles });
+        res.status(201).json({ status:'success', message: 'Archivos subidos correctamente', files: uploadedFiles });
     } catch (error) {
         res.status(500).json({ error: error.message });
     }
@@ -95,15 +96,10 @@ export const deleteFile = async (req, res) => {
 // Listar todo lo de una carpeta ya sea carpetas y archivos. se debe de corregir el filtrado de files, que se encuentran en un
 export const listFiles = async (req, res) => {
     const { folderId } = req.params;
-    const userId = req.user.id;
     const page = parseInt(req.query.page) || 1; // Página actual, por defecto 1
     const limit = parseInt(req.query.limit) || 10; // Límite de archivos por página, por defecto 10
 
     try {
-        if (!userId) {
-            return res.status(401).json({ error: 'No autorizado. Debes estar autenticado para ver archivos.' });
-        }
-
         // Verificar si el directorio existe
         const directory = await Directory.findById(folderId);
         if (!directory) {
@@ -118,10 +114,9 @@ export const listFiles = async (req, res) => {
             .skip((page - 1) * limit)
             .limit(limit);
 
-        // Listar subdirectorios dentro del directorio actual
+        // Listar todos los subdirectorios dentro del directorio actual (sin filtrar por el creador)
         const subDirectories = await Directory.find({
-            parent: directory._id,
-            createdBy: userId
+            parent: directory._id
         });
 
         res.status(200).json({
@@ -141,7 +136,6 @@ export const listFiles = async (req, res) => {
         res.status(500).json({ error: error.message });
     }
 };
-
 
 
 

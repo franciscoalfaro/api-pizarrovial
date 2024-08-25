@@ -64,7 +64,7 @@ export const uploadFile = async (req, res) => {
                 if (fs.existsSync(file.path)) {
                     fs.unlinkSync(file.path);
                 }
-                return res.status(400).json({ status: "error", error: `Extensión no permitida: ${fileExtension}. No se han subido archivos.` });
+                return res.status(400).json({ status: "error", message: `Extensión no permitida: ${fileExtension}. No se han subido archivos.` });
             }
         }
 

@@ -3,6 +3,7 @@ import File from '../models/file.js'; // Asegúrate de importar tu modelo de arc
 import fs from 'fs';
 import path from 'path';
 import { getDiskInfo } from 'node-disk-info';
+import Permision from '../models/permision.js';
 
 //extensiones permitidas
 const allowedExtensions = ['pdf', 'png', 'jpg', 'jpeg', 'gif', 'docx', 'xlsx', 'txt'];
@@ -14,10 +15,9 @@ export const uploadFile = async (req, res) => {
     const userId = req.user.id; // ID del usuario autenticado
 
     try {
-        // Verificar si el directorio existe antes de cualquier operación
+        // Verificar si el directorio existe
         const directory = await Directory.findById(folderId);
         if (!directory) {
-            // Eliminar archivos temporales si el directorio no existe
             if (req.files) {
                 req.files.forEach(file => {
                     if (fs.existsSync(file.path)) {
@@ -31,23 +31,21 @@ export const uploadFile = async (req, res) => {
         // Recoger archivos subidos
         const files = req.files;
         if (!files || files.length === 0) {
-            return res.status(400).json({ error: 'No se han subido archivos' });
+            return res.status(400).json({error: 'No se han subido archivos', error: 'No se han subido archivos' });
         }
 
         const uploadedFiles = [];
         const uploadPath = path.join(directory.path);
 
-        // Validar extensiones y mover archivos solo si son válidos
         for (const file of files) {
             const fileExtension = path.extname(file.originalname).slice(1).toLowerCase();
 
             if (allowedExtensions.includes(fileExtension) && !disallowedExtensions.includes(fileExtension)) {
                 const filePath = path.join(uploadPath, file.originalname);
 
-                // Mover el archivo solo si pasa la validación
                 fs.renameSync(file.path, filePath);
 
-                // Crear un objeto de archivo para guardar en la base de datos
+                // Crear el archivo en la base de datos
                 const newFile = new File({
                     filename: file.originalname,
                     filepath: path.join(directory.path, file.originalname).replace(/\\/g, '/'),
@@ -57,10 +55,18 @@ export const uploadFile = async (req, res) => {
                     directory: folderId
                 });
 
-                await newFile.save(); // Guardar en la base de datos
+                await newFile.save();
+
+                // Crear un permiso para el archivo
+                const permision = new Permision({
+                    uploadedBy: userId,
+                    file: newFile._id,
+                });
+
+                await permision.save(); // Guardar el permiso
+
                 uploadedFiles.push(newFile);
             } else {
-                // Eliminar archivo temporal si la extensión no es válida
                 if (fs.existsSync(file.path)) {
                     fs.unlinkSync(file.path);
                 }
@@ -71,7 +77,6 @@ export const uploadFile = async (req, res) => {
         res.status(201).json({ status: "success", message: 'Archivos subidos correctamente', files: uploadedFiles });
 
     } catch (error) {
-        // En caso de error, eliminar cualquier archivo temporal
         if (req.files) {
             req.files.forEach(file => {
                 if (fs.existsSync(file.path)) {
@@ -83,38 +88,62 @@ export const uploadFile = async (req, res) => {
     }
 };
 
+
+
 // Eliminar un archivo
 export const deleteFile = async (req, res) => {
     const { fileId } = req.params;
-    const userId = req.user.id; // ID del usuario autenticado
-
+    const userId = req.user.id;
 
     try {
-        // Buscar el archivo en la base de datos
         const file = await File.findById(fileId);
         if (!file) {
             return res.status(404).json({ error: 'Archivo no encontrado' });
         }
 
-        // Verificar que el usuario autenticado sea el creador del archivo
+        // Verificar si el usuario que intenta eliminar el archivo es el que lo subió
         if (file.uploadedBy.toString() !== userId) {
             return res.status(403).json({ error: 'No tienes permiso para eliminar este archivo' });
         }
 
-        // Construir la ruta del archivo
+        const createdAt = file.createdAt.getTime();
+        const now = Date.now();
+        const tenMinutesInMilliseconds = 10 * 60 * 1000;
+
+        // Si el archivo fue creado hace menos de 10 minutos, eliminarlo sin necesidad de autorización
+        if (now - createdAt <= tenMinutesInMilliseconds) {
+            const filePath = path.join(file.filepath);
+            if (fs.existsSync(filePath)) {
+                fs.unlinkSync(filePath);
+            }
+            await File.findByIdAndDelete(fileId);
+            return res.status(200).json({ status: "success", message: 'Archivo eliminado sin necesidad de autorización' });
+        }
+
+        // Si han pasado más de 10 minutos, verificar si tiene autorización para eliminar
+        const permision = await Permision.findOne({ file: fileId, uploadedBy: userId });
+        if (!permision || !permision.requiresAuthorization) {
+            return res.status(403).json({message: 'Se debe solicitar autorización para eliminar este archivo', error: 'Se debe solicitar autorización para eliminar este archivo' });
+        }
+
+        // Eliminar el archivo si la autorización existe
         const filePath = path.join(file.filepath);
-
-        // Eliminar el archivo físico
-        fs.unlinkSync(filePath);
-
-        // Eliminar el registro de la base de datos
+        if (fs.existsSync(filePath)) {
+            fs.unlinkSync(filePath);
+        }
         await File.findByIdAndDelete(fileId);
 
-        res.status(200).json({ status:"success", message: 'Archivo eliminado' });
+        // Opcional: eliminar el permiso asociado después de eliminar el archivo
+        await Permision.findOneAndDelete({ file: fileId, uploadedBy: userId });
+
+        res.status(200).json({ status: "success", message: 'Archivo eliminado' });
     } catch (error) {
         res.status(500).json({ error: error.message });
     }
 };
+
+
+
 
 // Listar todo lo de una carpeta ya sea carpetas y archivos. se debe de corregir el filtrado de files, que se encuentran en un
 export const listFiles = async (req, res) => {

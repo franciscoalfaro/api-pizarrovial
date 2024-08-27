@@ -26,6 +26,7 @@ import UserRoutes from "./routes/user.js";
 import RecoveryRoutes from "./routes/recovery.js";
 import DirectoryRoutes from "./routes/directory.js";
 import FileRoutes from "./routes/file.js";
+import AutorizaRoutes from "./routes/permision.js";
 
 
 // llamado a la ruta user
@@ -39,6 +40,9 @@ app.use("/api/directory",DirectoryRoutes)
 
 //archivos
 app.use("/api/file",FileRoutes)
+
+//permisos
+app.use("/api/permision",AutorizaRoutes)
 
 app.listen(puerto, ()=> {
     console.log("Server runing in port :" +puerto)

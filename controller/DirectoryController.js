@@ -2,6 +2,8 @@ import Directory from '../models/directory.js';
 import File from '../models/file.js';
 import fs from 'fs';
 import path from 'path';
+import Permision from '../models/permision.js';
+
 
 
 const getNextParentNumber = async () => {
@@ -25,7 +27,7 @@ export const createDirectory = async (req, res) => {
         if (parent) {
             parentDirectory = await Directory.findById(parent);
             if (!parentDirectory) {
-                return res.status(404).json({ error: 'Directorio padre no encontrado' });
+                return res.status(404).json({ message: 'Directorio padre no encontrado', error: 'Directorio padre no encontrado' });
             }
             parentPath = path.join(parentDirectory.path); // Obtén la ruta del directorio padre
             parentNumber = parentDirectory.parentNumber;
@@ -38,7 +40,7 @@ export const createDirectory = async (req, res) => {
         // Verificar si el directorio ya existe en la base de datos
         const existingDirectory = await Directory.findOne({ name, parent });
         if (existingDirectory) {
-            return res.status(400).json({ error: 'El nombre del directorio ya existe. Utiliza otro nombre.' });
+            return res.status(400).json({message: 'El nombre del directorio ya existe. Utiliza otro nombre.', error: 'El nombre del directorio ya existe. Utiliza otro nombre.' });
         }
 
         // Crear el directorio físico
@@ -51,9 +53,17 @@ export const createDirectory = async (req, res) => {
             parentNumber,
             createdBy,
             path: parentDirectory ? path.join(parentDirectory.path, name).replace(/\\/g, '/') : name // Ruta relativa
-        });
+        });   
+        
         await newDirectory.save();
 
+        const permision = new Permision({
+            uploadedBy: createdBy,
+            directory: parent
+        });
+
+        await permision.save(); // Guardar en la base de datos
+        
         return res.status(200).send({
             status: "success",
             message: "directorio creado correctamente",
@@ -118,21 +128,29 @@ export const getDirectories = async (req, res) => {
 export const deleteDirectory = async (req, res) => {
     const { directoryId } = req.params;
     const userId = req.user.id; // ID del usuario autenticado
+    console.log(directoryId, userId)
 
     try {
         // Buscar el directorio por ID
         const directory = await Directory.findById(directoryId);
         if (!directory) {
-            return res.status(404).json({ error: 'Directorio no encontrado' });
+            return res.status(404).json({ message: 'Directorio no encontrado',error: 'Directorio no encontrado' });
         }
 
-        // Verificar que el usuario autenticado sea el creador del directorio
-        if (directory.createdBy.toString() !== userId) {
-            return res.status(403).json({ error: 'No tienes permiso para eliminar este directorio' });
+        // Buscar permisos para el directorio
+        const permision = await Permision.findOne({
+            uploadedBy: userId
+        });
+
+
+        if (!permision) {
+            return res.status(404).json({ message: 'Permiso no encontrado' , error: 'Permiso no encontrado'});
         }
 
-        // Obtener la ruta del directorio
-        const dirPath = path.join(directory.path);
+        // Verificar si requiere autorización
+        if (Date.now() <= permision.deleteAt && permision.requiresAuthorization) {
+            return res.status(403).json({message: 'Se requiere autorización para eliminar este directorio.', error: 'Se requiere autorización para eliminar este directorio.' });
+        }
 
         // Eliminar archivos dentro del directorio
         const files = await File.find({ filepath: { $regex: `^${directory.path}` } });
@@ -150,9 +168,13 @@ export const deleteDirectory = async (req, res) => {
 
         // Finalmente, eliminar el directorio
         await Directory.findByIdAndDelete(directoryId);
-        fs.rmSync(dirPath, { recursive: true }); // Eliminar el directorio físico
+        fs.rmSync(directory.path, { recursive: true }); // Eliminar el directorio físico
 
-        res.status(200).json({ status:"success",message: 'Directorio y su contenido eliminados' });
+        // Actualizar el permiso a eliminado
+        permision.isDeleted = true;
+        await permision.save();
+
+        res.status(200).json({ message: 'Directorio y su contenido eliminados correctamente.' });
     } catch (error) {
         res.status(500).json({ error: error.message });
     }

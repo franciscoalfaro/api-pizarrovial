@@ -196,7 +196,7 @@ export const profile = async (req, res) => {
         const id = req.params.id;
 
         // Buscar el usuario por ID y excluir campos sensibles
-        const userProfile = await User.findById(id).select({ "password": 0, "role": 0 });
+        const userProfile = await User.findById(id).select({ "password": 0 });
 
         if (!userProfile) {
             return res.status(404).json({ status: "error", message: "NO SE HA ENCONTRADO EL USUARIO" });

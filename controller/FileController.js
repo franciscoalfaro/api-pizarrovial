@@ -4,6 +4,7 @@ import fs from 'fs';
 import path from 'path';
 import { getDiskInfo } from 'node-disk-info';
 import Permision from '../models/permision.js';
+import User from '../models/user.js'
 
 //extensiones permitidas
 const allowedExtensions = ['pdf', 'png', 'jpg', 'jpeg', 'gif', 'docx', 'xlsx', 'txt'];
@@ -236,6 +237,24 @@ export const downloadFile = async (req, res) => {
         res.status(500).json({ error: error.message });
     }
 };
+
+
+export const listAllFiles = async (req, res) => {
+    try {
+        // Obtener todos los archivos del sistema
+        const files = await File.find({}).populate('uploadedBy', 'name surname');
+
+        res.status(200).json({
+            status: "success",
+            message: "Todos los archivos encontrados",
+            resultado:files,            
+        });
+
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+};
+
 
 
 

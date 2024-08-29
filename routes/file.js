@@ -25,6 +25,9 @@ router.delete("/delete/:fileId", checkAuth,FileController.deleteFile)
 //obtener el listado de archivos
 router.get("/files/:folderId", checkAuth, FileController.listFiles);
 
+//listar todos los archivos
+router.get("/allfiles", checkAuth, FileController.listAllFiles);
+
 //descargar archivo que corresponde
 router.get("/download/:fileId", checkAuth, FileController.downloadFile);
 

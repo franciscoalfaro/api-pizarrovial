@@ -2,9 +2,8 @@ import Directory from '../models/directory.js';
 import File from '../models/file.js'; // Asegúrate de importar tu modelo de archivos
 import fs from 'fs';
 import path from 'path';
-import { getDiskInfo } from 'node-disk-info';
 import Permision from '../models/permision.js';
-import User from '../models/user.js'
+
 
 //extensiones permitidas
 const allowedExtensions = ['pdf', 'png', 'jpg', 'jpeg', 'gif', 'docx', 'xlsx', 'txt'];

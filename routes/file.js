@@ -29,7 +29,5 @@ router.get("/files/:folderId", checkAuth, FileController.listFiles);
 router.get("/download/:fileId", checkAuth, FileController.downloadFile);
 
 
-router.get("/disk-space", checkAuth, FileController.getDiskSpace);
-
 // Exportar router
 export default router;

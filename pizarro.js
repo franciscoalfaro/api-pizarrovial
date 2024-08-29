@@ -27,6 +27,7 @@ import RecoveryRoutes from "./routes/recovery.js";
 import DirectoryRoutes from "./routes/directory.js";
 import FileRoutes from "./routes/file.js";
 import AutorizaRoutes from "./routes/permision.js";
+import SpaceRoutes from "./routes/space.js";
 
 
 // llamado a la ruta user
@@ -40,6 +41,9 @@ app.use("/api/directory",DirectoryRoutes)
 
 //archivos
 app.use("/api/file",FileRoutes)
+
+//espacio
+app.use("/api/space",SpaceRoutes)
 
 //permisos
 app.use("/api/permision",AutorizaRoutes)

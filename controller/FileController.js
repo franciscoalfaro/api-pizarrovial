@@ -238,38 +238,5 @@ export const downloadFile = async (req, res) => {
 };
 
 
-export const getDiskSpace = async (req, res) => {
-    try {
-        const disks = await getDiskInfo();
-
-        const diskInfo = disks[0]; // Select the first available disk
-
-        if (!diskInfo) {
-            return res.status(404).json({ error: 'No se encontró información del disco' });
-        }
-
-        // Calculate disk space in GB
-        const totalSpaceGB = Math.round(diskInfo._blocks / (1024 * 1024 * 1024));
-        const freeSpaceGB = Math.round(diskInfo._available / (1024 * 1024 * 1024));
-        const usedSpaceGB = totalSpaceGB - freeSpaceGB;
-
-        // Function to round to the nearest 10 GB increment
-        const nearestGB = (size) => Math.round(size / 10) * 10;
-
-        const realisticTotalGB = nearestGB(totalSpaceGB);
-        const realisticFreeGB = nearestGB(freeSpaceGB);
-        const realisticUsedGB = nearestGB(usedSpaceGB);
-
-        res.status(200).json({
-            status: 'success',
-            message: 'Espacio en disco encontrado',
-            Total: realisticTotalGB,
-            Usado: realisticUsedGB,
-            Disponible: realisticFreeGB,
-        });
-    } catch (error) {
-        res.status(500).json({ error: error.message });
-    }
-};
 
 

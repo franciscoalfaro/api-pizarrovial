@@ -30,9 +30,9 @@ const getDiskSpaceLinux = () => {
             const realisticFreeGB = roundToNearest(freeSpaceGB);
 
             resolve({
-                Total: realisticTotalGB,
-                Usado: realisticUsedGB,
-                Disponible: realisticFreeGB,
+                total: realisticTotalGB,
+                used: realisticUsedGB,
+                available: realisticFreeGB,
             });
         });
     });

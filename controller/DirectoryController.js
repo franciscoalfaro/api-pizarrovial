@@ -15,7 +15,6 @@ const getNextParentNumber = async () => {
 export const createDirectory = async (req, res) => {
     const { name, parent } = req.body;
     const createdBy = req.user.id; // Usar el ID del usuario autenticado
-    console.log(req.body)
 
     try {
         const baseDir = 'uploads/directorios';
@@ -128,7 +127,6 @@ export const getDirectories = async (req, res) => {
 export const deleteDirectory = async (req, res) => {
     const { directoryId } = req.params;
     const userId = req.user.id; // ID del usuario autenticado
-    console.log(directoryId, userId)
 
     try {
         // Buscar el directorio por ID
@@ -154,6 +152,7 @@ export const deleteDirectory = async (req, res) => {
 
         // Eliminar archivos dentro del directorio
         const files = await File.find({ filepath: { $regex: `^${directory.path}` } });
+        console.log(files)
         for (const file of files) {
             const filePath = path.join(file.filepath);
             fs.unlinkSync(filePath); // Eliminar archivo físico
@@ -162,6 +161,7 @@ export const deleteDirectory = async (req, res) => {
 
         // Eliminar subdirectorios de forma recursiva
         const subDirectories = await Directory.find({ parent: directoryId });
+        console.log(subDirectories)
         for (const subDir of subDirectories) {
             await deleteDirectory({ params: { directoryId: subDir._id } }); // Llamada recursiva
         }

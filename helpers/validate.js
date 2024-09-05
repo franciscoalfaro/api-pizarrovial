@@ -9,8 +9,7 @@ export const validate = (params) => {
         validator.isLength(params.surname, { min: 3, max: undefined }) &&
         validator.isAlpha(params.surname, "es-ES");
 
-    let email = !validator.isEmpty(params.email) &&
-        validator.isEmail(params.email, { min: 2, max: undefined });
+    let email = !validator.isEmpty(params.email) && validator.isEmail(params.email);
 
     let password = !validator.isEmpty(params.password);
         //&& validator.isStrongPassword(params.password, { minLength: 5, minNumbers: 1 });

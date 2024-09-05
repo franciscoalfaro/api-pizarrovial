@@ -89,7 +89,8 @@ export const login = async (req, res) => {
         }
 
         // Comprobar password que llega por el body y con la password del usuario de la BD
-        const pwd = bcrypt.compareSync(params.password, user.password);
+        const pwd = await bcrypt.compare(params.password, user.password);
+
 
         if (!pwd) {
             return res.status(400).send({

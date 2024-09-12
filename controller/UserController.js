@@ -73,10 +73,11 @@ export const register = async (req, res) => {
 export const login = async (req, res) => {
     let params = req.body;
 
-    if (!params.email || !params.password) {
+    // Validar que email y password sean cadenas
+    if (!params.email || typeof params.email !== 'string' || !params.password || typeof params.password !== 'string') {
         return res.status(400).send({
-            status: "error_404",
-            message: "faltan datos por enviar"
+            status: "error_400",
+            message: "Email o contraseña no válidos"
         });
     }
 
@@ -91,7 +92,6 @@ export const login = async (req, res) => {
         // Comprobar password que llega por el body y con la password del usuario de la BD
         const pwd = await bcrypt.compare(params.password, user.password);
 
-
         if (!pwd) {
             return res.status(400).send({
                 error: "error",
@@ -99,16 +99,12 @@ export const login = async (req, res) => {
             });
         }
 
-        // Si usuario con cuenta desactivada se loguea nuevamente se cambia estado de cuenta desactivada=true a cuenta desactivada=false
+        // Si el usuario está desactivado, cambiar el estado
         user.eliminado = false;
-
-        // Guardar el usuario actualizado en la BD
         await user.save();
 
-        // Devolver token
-      
+        // Generar y devolver el token
         const token = jwt.createToken(user);
-        // Devolver datos del usuario
         return res.status(200).json({
             status: "success",
             message: "Te has identificado de forma correcta.",

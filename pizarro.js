@@ -26,6 +26,7 @@ import UserRoutes from "./routes/user.js";
 import RecoveryRoutes from "./routes/recovery.js";
 import DirectoryRoutes from "./routes/directory.js";
 import FileRoutes from "./routes/file.js";
+import FilesRoutes from "./routes/subidas.js";
 import AutorizaRoutes from "./routes/permision.js";
 import SpaceRoutes from "./routes/space.js";
 
@@ -41,6 +42,8 @@ app.use("/api/directory",DirectoryRoutes)
 
 //archivos
 app.use("/api/file",FileRoutes)
+
+app.use("/api/arc",FilesRoutes)
 
 //espacio
 app.use("/api/space",SpaceRoutes)

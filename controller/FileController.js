@@ -3,10 +3,11 @@ import File from '../models/file.js'; // Asegúrate de importar tu modelo de arc
 import fs from 'fs';
 import path from 'path';
 import Permision from '../models/permision.js';
+import  {Readable}  from 'stream';
 
 
 //extensiones permitidas
-const allowedExtensions = ['pdf', 'png', 'jpg', 'jpeg', 'gif', 'docx', 'xlsx', 'txt'];
+const allowedExtensions = ['pdf', 'png', 'jpg', 'jpeg', 'gif', 'docx', 'xlsx', 'txt','zip','rar','pptx','mp4','mp3','wav','flac','avi','mkv','mov','wmv','wma','ogg','webm','m4a','m4v','flv','3gp','aac','mpg','mpeg','m4p','m4b','m4r','m4v','m4a','m4p','m4b','m4r','m4v','m4a','m4p','m4b','m4r','m4v','m4a','m4p','m4b','m4r','m4v','m4a','m4p','m4b','m4r','m4v','m4a','m4p','m4b','m4r','m4v','m4a','m4p','m4b','m4r','m4v','m4a','m4p','m4b','m4r','m4v','m4a','m4p','m4b','m4r','m4v','m4a','m4p','m4b','m4r','m4v','m4a','m4p','m4b','m4r','m4v'];
 //extensiones no permitidas
 const disallowedExtensions = ['exe','bat', 'sh'];
 
@@ -255,6 +256,105 @@ export const listAllFiles = async (req, res) => {
 };
 
 
+export const uploadFileBuss = async (req, res) => {
+    const { folderId } = req.params;
+    const userId = req.user.id; // ID del usuario autenticado
 
+    try {
+        // Verificar si el directorio existe
+        const directory = await Directory.findById(folderId);
+        if (!directory) {
+            // Eliminar archivos temporales si existen
+            if (req.files) {
+                req.files.forEach(file => {
+                    if (fs.existsSync(file.path)) {
+                        fs.unlinkSync(file.path); // Eliminar archivo temporal
+                    }
+                });
+            }
+            return res.status(404).json({ error: 'Directorio no encontrado. No se han subido archivos.' });
+        }
 
+        // Recoger archivos subidos
+        const files = req.files;
+        if (!files || files.length === 0) {
+            return res.status(400).json({ error: 'No se han subido archivos' });
+        }
+
+        const uploadedFiles = [];
+        const uploadPath = path.join(directory.path); // Ruta del directorio de destino
+
+        // Iterar sobre los archivos subidos
+        for (const file of files) {
+            const fileExtension = path.extname(file.originalname).slice(1).toLowerCase();
+
+            // Validar la extensión del archivo
+            if (allowedExtensions.includes(fileExtension) && !disallowedExtensions.includes(fileExtension)) {
+                const filePath = path.join(uploadPath, file.originalname);
+
+                // Crear un stream de escritura para guardar el archivo
+                const writeStream = fs.createWriteStream(filePath);
+
+                // Crear un stream de lectura desde el buffer del archivo
+                const readableStream = new Readable();
+                readableStream.push(file.buffer);
+                readableStream.push(null); // Fin del stream
+
+                // Pipe del stream de lectura al de escritura
+                readableStream.pipe(writeStream);
+
+                // Esperar a que termine de escribir el archivo
+                await new Promise((resolve, reject) => {
+                    writeStream.on('finish', resolve);
+                    writeStream.on('error', reject);
+                });
+
+                // Crear el archivo en la base de datos
+                const newFile = new File({
+                    filename: file.originalname,
+                    filepath: path.join(directory.path, file.originalname).replace(/\\/g, '/'),
+                    mimetype: file.mimetype,
+                    size: file.size,
+                    uploadedBy: userId,
+                    directory: folderId
+                });
+
+                await newFile.save();
+
+                // Crear un permiso para el archivo
+                const permission = new Permision({
+                    uploadedBy: userId,
+                    file: newFile._id,
+                });
+
+                await permission.save(); // Guardar el permiso
+
+                uploadedFiles.push(newFile); // Agregar archivo a la lista de archivos subidos
+            } else {
+                // Eliminar archivo temporal si la extensión no es válida
+                if (fs.existsSync(file.path)) {
+                    fs.unlinkSync(file.path);
+                }
+                return res.status(400).json({ status: "error", message: `Extensión no permitida: ${fileExtension}. No se han subido archivos.` });
+            }
+        }
+
+        // Respuesta exitosa con la lista de archivos subidos
+        res.status(201).json({ status: "success", message: 'Archivos subidos correctamente', files: uploadedFiles });
+
+    } catch (error) {
+        // Eliminar archivos temporales si ocurrió un error
+        if (req.files) {
+            req.files.forEach(file => {
+                if (fs.existsSync(file.path)) {
+                    fs.unlinkSync(file.path);
+                }
+            });
+        }
+
+        // Manejo de errores
+        console.error('Error al procesar la carga:', error);
+        res.status(500).json({ error: error.message });
+    }
+};
 
